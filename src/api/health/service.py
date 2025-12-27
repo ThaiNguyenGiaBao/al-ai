@@ -5,7 +5,6 @@ from typing import List, Tuple, Optional, Dict, Any
 
 import requests
 
-from provider.minIO import minio_service  # adjust import according to your project
 
 from .schema import Detection  # relative import
 
@@ -71,8 +70,8 @@ class HealthService:
     Lightweight service for disease detection using a multimodal LLM (Gemini).
     """
 
-    def __init__(self, minio=minio_service, model_name: str = "gemini-2.5-flash"):
-        self.minio = minio
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
+        pass
 
     def detect_from_url(self, image_url: str) -> Dict[str, Any]:
         """
