@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chẩn đoán tình trạng cây</title>
+
+    <!-- TailwindCSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 text-gray-900">
+    <div class="min-h-screen">
+
+        <!-- Top bar (no outer padding) -->
+        <div class="sticky top-0 z-30 bg-white border-b border-gray-200">
+            <div class="max-w-md mx-auto py-3">
+                <div class="font-semibold text-center text-base leading-tight">
+                    Dự đoán tình trạng cây – THCS XXX
+                </div>
+            </div>
+        </div>
+
+        <!-- Main (NO px-4 to maximize width) -->
+        <main class="max-w-md mx-auto py-3 pb-24 space-y-3">
+
+            <!-- Preview card (edge-to-edge) -->
+            <div class="bg-white shadow-sm border border-gray-200 overflow-hidden">
+                <div class="aspect-[4/3] bg-gray-50 flex items-center justify-center relative">
+                    <img id="resultImage" class="hidden w-full h-full object-cover" alt="Ảnh đã chọn" />
+                    <div id="bboxLayer" class="absolute inset-0 pointer-events-none"></div>
+
+                    <div id="emptyImage" class="px-4 text-center text-gray-500">
+                        <div class="text-base font-semibold">Chưa có ảnh</div>
+                        <div class="text-sm mt-1">Nhấn nút xanh bên dưới để chọn ảnh.</div>
+                    </div>
+                </div>
+
+                <!-- Compact summary (no icon, no extra labels) -->
+                <div id="quickStrip" class="hidden border-t border-gray-200 p-4">
+                    <div class="text-xs font-semibold text-gray-500">Kết luận</div>
+                    <div id="quickPrediction" class="text-lg font-bold leading-snug mt-1">—</div>
+
+                    <div class="mt-3 ">
+                        <span id="severityPill"
+                            class="text-xs px-2.5 py-1 rounded-full border bg-gray-50 border-gray-200 text-gray-700">
+                            —
+                        </span>
+                        <div class="text-sm text-gray-700 truncate mt-2">
+                            <span class="text-gray-500 text-xs font-semibold">Cần làm ngay:</span>
+                            <div id="quickAction" class="font-medium truncate">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result content -->
+            <div id="resultContent" class="hidden space-y-3">
+
+                <!-- Severity meter (compact) -->
+                <div class="bg-white shadow-sm border border-gray-200 p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm font-semibold">Mức độ ảnh hưởng</div>
+                        <div id="severityText" class="text-sm font-semibold text-gray-700">—</div>
+                    </div>
+
+                    <div class="mt-2">
+                        <div class="w-full h-3 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                            <div id="severityBar" class="h-full w-1/3 bg-green-500"></div>
+                        </div>
+                        <div id="severityHint" class="mt-2 text-sm text-gray-600">—</div>
+                    </div>
+                </div>
+
+                <!-- Causes with progress bars (compact cards) -->
+                <div class="bg-white shadow-sm border border-gray-200 p-4">
+                    <div class="text-sm font-semibold">Nguyên nhân có thể</div>
+                    <div id="causesList" class="mt-3 space-y-3"></div>
+                </div>
+
+                <!-- Actions with checkboxes (compact, no plus button) -->
+                <div class="bg-white shadow-sm border border-gray-200 p-4">
+                    <div class="text-sm font-semibold">Việc nên làm</div>
+                    <div class="text-xs text-gray-500 mt-1">Tích ✅ khi đã làm xong</div>
+                    <div id="actionsList" class="mt-3 space-y-3"></div>
+                </div>
+
+                <!-- Bio/Chem (compact) -->
+                <div class="bg-white shadow-sm border border-gray-200 p-4">
+                    <div class="text-sm font-semibold">Gợi ý xử lý</div>
+
+                    <div class="mt-3 space-y-3">
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 mb-1">Sinh học (ưu tiên)</div>
+                            <div id="bioBox"
+                                class="rounded-xl border bg-green-50 border-green-200 text-green-800 px-3 py-2 text-sm">
+                                —
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 mb-1">Hóa học (khi cần)</div>
+                            <div id="chemBox"
+                                class="rounded-xl border bg-red-50 border-red-200 text-red-800 px-3 py-2 text-sm">
+                                —
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monitor & Prevent (compact) -->
+                <div class="bg-white shadow-sm border border-gray-200 p-4">
+                    <div class="text-sm font-semibold">Theo dõi & Phòng ngừa</div>
+
+                    <div class="mt-3">
+                        <div class="text-xs font-semibold text-gray-500 mb-1">Kế hoạch theo dõi</div>
+                        <div id="monitoringPlan" class="text-sm text-gray-700 whitespace-pre-wrap">—</div>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="text-xs font-semibold text-gray-500 mb-1">Phòng ngừa</div>
+                        <ul id="preventList" class="list-disc pl-5 space-y-1 text-sm text-gray-700"></ul>
+                    </div>
+
+                    <div id="notesWrap" class="hidden mt-4">
+                        <div class="text-xs font-semibold text-gray-500 mb-1">Ghi chú</div>
+                        <div id="notesText" class="text-sm text-gray-700 whitespace-pre-wrap"></div>
+                    </div>
+                </div>
+
+                <div id="errorBox" class="hidden border border-red-200 bg-red-50 text-red-800 px-3 py-2 text-sm"></div>
+
+                <!-- Debug JSON (optional; keep but compact) -->
+                <details class="bg-white shadow-sm border border-gray-200 p-4">
+                    <summary class="cursor-pointer text-xs text-gray-500">JSON (debug)</summary>
+                    <pre id="rawJson"
+                        class="mt-2 text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 overflow-auto no-scrollbar"></pre>
+                </details>
+            </div>
+
+            <!-- Helper card (compact) -->
+            <div id="helperCard" class="bg-white shadow-sm border border-gray-200 p-4">
+                <div class="text-sm text-gray-700">
+                    <div class="text-sm font-semibold">Cách dùng</div>
+                    <ol class="list-decimal pl-5 mt-2 space-y-1">
+                        <li>Nhấn nút xanh để chọn ảnh.</li>
+                        <li>Chọn 1 ảnh và nhấn “Phân tích”.</li>
+                        <li>Chờ khoảng 10 giây.</li>
+                    </ol>
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom CTA -->
+        <div class="fixed bottom-0 left-0 right-0 z-30 bg-white/90 backdrop-blur border-t border-gray-200">
+            <div class="max-w-md px-4 mx-auto py-3">
+                <button id="openPickerBtn"
+                    class="w-full rounded-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold py-3 shadow-sm text-base">
+                    Chuẩn đoán tình trạng cây
+                </button>
+            </div>
+        </div>
+
+        <!-- Hidden input -->
+        <input id="fileInput" type="file" accept="image/*" multiple class="hidden" />
+
+        <!-- Modal: Select images -->
+        <div id="selectModal" class="hidden fixed inset-0 z-40">
+            <div class="absolute inset-0 bg-black/35"></div>
+            <div class="absolute inset-0 flex items-center justify-center p-3">
+                <div class="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="p-4 pb-2">
+                        <div class="text-lg font-semibold">Chọn ảnh để phân tích</div>
+                        <div class="text-sm text-gray-500 mt-1"><span id="pickedCount">0/0</span> ảnh đã chọn</div>
+                    </div>
+
+                    <div class="px-4 pb-4">
+                        <div id="thumbGrid" class="grid grid-cols-3 gap-3"></div>
+
+                        <div class="mt-3 flex items-center justify-end gap-4">
+                            <button id="closeModalBtn"
+                                class="text-gray-700 font-semibold hover:opacity-80">Đóng</button>
+                            <button id="analyzeBtn"
+                                class="text-gray-900 font-semibold hover:opacity-80 disabled:text-gray-300" disabled>
+                                Phân tích
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Processing -->
+        <div id="processingModal" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/35"></div>
+            <div class="absolute inset-0 flex items-center justify-center p-3">
+                <div class="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="p-5">
+                        <div class="text-lg font-semibold">Đang phân tích...</div>
+                        <div class="text-sm text-gray-500 mt-1"><span id="processingPickedCount">1/1</span> ảnh đã chọn
+                        </div>
+
+                        <div class="mt-5 flex flex-col items-center gap-3">
+                            <div
+                                class="w-12 h-12 rounded-full border-4 border-gray-200 border-t-green-600 animate-spin">
+                            </div>
+
+                            <div class="w-full">
+                                <div class="w-full h-3 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                                    <div id="fakeProgress"
+                                        class="h-full w-1/12 bg-green-500 transition-all duration-500"></div>
+                                </div>
+                                <div class="mt-2 text-xs text-gray-500 text-right" id="fakeProgressText">0%</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 text-right text-gray-500 text-sm font-medium">Đang xử lý...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // =======================
+        // CONFIG
+        // =======================
+        const API_URL = "/api/health/detect-bytes";
+        const FORM_FIELD_NAME = "image";
+
+        // =======================
+        // STATE
+        // =======================
+        const state = {
+            images: [],          // { id, file, url }
+            selectedId: null,    // enforce 1 selection
+            result: null,
+            checkedActions: new Set(),
+        };
+
+        // =======================
+        // DOM
+        // =======================
+        const openPickerBtn = document.getElementById("openPickerBtn");
+        const fileInput = document.getElementById("fileInput");
+
+        const selectModal = document.getElementById("selectModal");
+        const processingModal = document.getElementById("processingModal");
+
+        const closeModalBtn = document.getElementById("closeModalBtn");
+        const analyzeBtn = document.getElementById("analyzeBtn");
+
+        const pickedCount = document.getElementById("pickedCount");
+        const processingPickedCount = document.getElementById("processingPickedCount");
+        const thumbGrid = document.getElementById("thumbGrid");
+
+        const resultImage = document.getElementById("resultImage");
+        const emptyImage = document.getElementById("emptyImage");
+        const bboxLayer = document.getElementById("bboxLayer");
+
+        const resultContent = document.getElementById("resultContent");
+        const helperCard = document.getElementById("helperCard");
+
+        const quickStrip = document.getElementById("quickStrip");
+        const quickPrediction = document.getElementById("quickPrediction");
+        const quickAction = document.getElementById("quickAction");
+
+        const severityPill = document.getElementById("severityPill");
+        const severityText = document.getElementById("severityText");
+        const severityBar = document.getElementById("severityBar");
+        const severityHint = document.getElementById("severityHint");
+
+        const causesList = document.getElementById("causesList");
+        const actionsList = document.getElementById("actionsList");
+
+        const chemBox = document.getElementById("chemBox");
+        const bioBox = document.getElementById("bioBox");
+
+        const monitoringPlan = document.getElementById("monitoringPlan");
+        const preventList = document.getElementById("preventList");
+        const notesWrap = document.getElementById("notesWrap");
+        const notesText = document.getElementById("notesText");
+
+        const errorBox = document.getElementById("errorBox");
+        const rawJson = document.getElementById("rawJson");
+
+        const fakeProgress = document.getElementById("fakeProgress");
+        const fakeProgressText = document.getElementById("fakeProgressText");
+        let fakeTimer = null;
+
+        // =======================
+        // HELPERS
+        // =======================
+        const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
+        const clamp01 = (x) => Math.max(0, Math.min(1, x));
+        const percent = (x) => Math.round(clamp01(x) * 100);
+
+        function show(el) { el.classList.remove("hidden"); }
+        function hide(el) { el.classList.add("hidden"); }
+
+        // ✅ FIXED BUG: clean escapeHtml
+        function escapeHtml(s) {
+            return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
+
+        function setSelected(id) {
+            state.selectedId = id;
+            renderThumbs();
+            updateCounts();
+            analyzeBtn.disabled = !state.selectedId;
+        }
+
+        function updateCounts() {
+            const total = state.images.length;
+            const selected = state.selectedId ? 1 : 0;
+            pickedCount.textContent = `${selected}/${total}`;
+            processingPickedCount.textContent = `${selected}/${selected || 1}`;
+        }
+
+        function setMainImage(url) {
+            resultImage.src = url;
+            resultImage.classList.remove("hidden");
+            emptyImage.classList.add("hidden");
+        }
+
+        function resetBBoxes() { bboxLayer.innerHTML = ""; }
+
+        function openSelectModal() {
+            show(selectModal);
+            renderThumbs();
+            updateCounts();
+        }
+        function closeSelectModal() { hide(selectModal); }
+
+        function openProcessing() {
+            show(processingModal);
+            startFakeProgress();
+            updateCounts();
+        }
+        function closeProcessing() {
+            stopFakeProgress();
+            hide(processingModal);
+        }
+
+        function startFakeProgress() {
+            stopFakeProgress();
+            let p = 0;
+            fakeProgress.style.width = "2%";
+            fakeProgressText.textContent = "0%";
+            fakeTimer = setInterval(() => {
+                const inc = p < 60 ? 8 : (p < 85 ? 4 : 1);
+                p = Math.min(95, p + inc);
+                fakeProgress.style.width = p + "%";
+                fakeProgressText.textContent = p + "%";
+            }, 450);
+        }
+        function stopFakeProgress() {
+            if (fakeTimer) clearInterval(fakeTimer);
+            fakeTimer = null;
+            fakeProgress.style.width = "100%";
+            fakeProgressText.textContent = "100%";
+        }
+
+        // =======================
+        // THUMBS
+        // =======================
+        function makeUploadTile() {
+            const tile = document.createElement("button");
+            tile.type = "button";
+            tile.className =
+                "aspect-square rounded-xl border border-gray-200 bg-white hover:bg-gray-50 " +
+                "flex flex-col items-center justify-center gap-2";
+
+            tile.innerHTML = `
+      <div class="w-10 h-10 rounded-full bg-green-50 border border-green-100 flex items-center justify-center text-green-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+        </svg>
+      </div>
+      <div class="text-xs font-semibold text-gray-700">Thêm ảnh</div>
+    `;
+            tile.addEventListener("click", () => fileInput.click());
+            return tile;
+        }
+
+        function renderThumbs() {
+            thumbGrid.innerHTML = "";
+
+            if (state.images.length === 0) {
+                thumbGrid.appendChild(makeUploadTile());
+                updateCounts();
+                analyzeBtn.disabled = true;
+                return;
+            }
+
+            for (const img of state.images) {
+                const isSelected = img.id === state.selectedId;
+
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className =
+                    "relative aspect-square rounded-xl overflow-hidden border-2 " +
+                    (isSelected ? "border-green-500 ring-2 ring-green-200" : "border-transparent") +
+                    " bg-gray-100";
+
+                const imageEl = document.createElement("img");
+                imageEl.src = img.url;
+                imageEl.alt = img.file.name;
+                imageEl.className = "w-full h-full object-cover";
+
+                const overlay = document.createElement("div");
+                overlay.className = "absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center " +
+                    (isSelected ? "bg-green-500 text-white" : "bg-black/40 text-white");
+
+                overlay.innerHTML = isSelected
+                    ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+             <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.2 7.2a1 1 0 01-1.42 0l-3.2-3.2a1 1 0 011.42-1.42l2.49 2.49 6.49-6.49a1 1 0 011.42 0z" clip-rule="evenodd"/>
+           </svg>`
+                    : `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+             <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+           </svg>`;
+
+                btn.appendChild(imageEl);
+                btn.appendChild(overlay);
+                btn.addEventListener("click", () => setSelected(img.id));
+                thumbGrid.appendChild(btn);
+            }
+
+            thumbGrid.appendChild(makeUploadTile());
+            updateCounts();
+            analyzeBtn.disabled = !state.selectedId;
+        }
+
+        // =======================
+        // SEVERITY VISUALS
+        // =======================
+        function setSeverity(level) {
+            const s = (level || "").toLowerCase();
+
+            // defaults
+            severityPill.textContent = level ? `Mức độ: ${level}` : "Mức độ: —";
+            severityPill.className = "text-xs px-2.5 py-1 rounded-full border bg-gray-50 border-gray-200 text-gray-700";
+
+            severityText.textContent = level || "—";
+            severityBar.className = "h-full bg-gray-400";
+            severityBar.style.width = "33%";
+            severityHint.textContent = "—";
+
+            if (s.includes("cao")) {
+                severityPill.className = "text-xs px-2.5 py-1 rounded-full border bg-red-50 border-red-200 text-red-700";
+                severityBar.className = "h-full bg-red-500";
+                severityBar.style.width = "90%";
+                severityHint.textContent = "Cao: cần xử lý sớm để cây không nặng hơn.";
+                return;
+            }
+            if (s.includes("trung")) {
+                severityPill.className = "text-xs px-2.5 py-1 rounded-full border bg-amber-50 border-amber-200 text-amber-700";
+                severityBar.className = "h-full bg-amber-500";
+                severityBar.style.width = "60%";
+                severityHint.textContent = "Trung bình: theo dõi thường xuyên và xử lý theo hướng dẫn.";
+                return;
+            }
+            if (s.includes("thấp") || s.includes("thap")) {
+                severityPill.className = "text-xs px-2.5 py-1 rounded-full border bg-green-50 border-green-200 text-green-700";
+                severityBar.className = "h-full bg-green-500";
+                severityBar.style.width = "30%";
+                severityHint.textContent = "Thấp: ít nghiêm trọng, vẫn nên phòng ngừa.";
+                return;
+            }
+        }
+
+        // =======================
+        // RENDER RESULT
+        // =======================
+        function renderCauseCard(cause, confidence, evidence) {
+            const p = (typeof confidence === "number") ? percent(confidence) : null;
+
+            const wrap = document.createElement("div");
+            wrap.className = "border border-gray-200 rounded-xl p-3 bg-gray-50";
+
+            wrap.innerHTML = `
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <div class="font-semibold text-sm text-gray-900">${escapeHtml(cause || "—")}</div>
+          <div class="text-sm text-gray-600 mt-1">${escapeHtml(evidence || "")}</div>
+        </div>
+        <div class="text-xs font-semibold text-gray-600 whitespace-nowrap">${p != null ? (p + "%") : ""}</div>
+      </div>
+
+      <div class="mt-2">
+        <div class="w-full h-3 rounded-full bg-white border border-gray-200 overflow-hidden">
+          <div class="h-full bg-green-500" style="width:${p != null ? p : 0}%"></div>
+        </div>
+      </div>
+    `;
+            return wrap;
+        }
+
+        function renderActionCard(act, idx) {
+            const id = `act_${idx}_${(act.name || "").slice(0, 16)}`;
+            const checked = state.checkedActions.has(id);
+
+            const card = document.createElement("label");
+            card.className = "block rounded-xl border border-gray-200 bg-white p-3 cursor-pointer";
+
+            const timing = act.timing || "";
+            const freq =
+                (act.targetValue != null ? `• ${act.targetValue} lần` : "") +
+                (act.numOfWeeks != null ? ` / ${act.numOfWeeks} tuần` : "");
+
+            card.innerHTML = `
+      <div class="flex items-start gap-3">
+        <input type="checkbox" class="mt-1 w-5 h-5 accent-green-600" ${checked ? "checked" : ""} />
+        <div class="min-w-0">
+          <div class="font-semibold text-sm text-gray-900">${escapeHtml(act.name || "—")}</div>
+          ${(timing || freq.trim()) ? `<div class="text-xs text-gray-500 mt-1">${escapeHtml(timing)} <span class="ml-1">${escapeHtml(freq)}</span></div>` : ""}
+          <div class="text-sm text-gray-700 mt-2 whitespace-pre-wrap">${escapeHtml(act.description || "")}</div>
+        </div>
+      </div>
+    `;
+
+            const checkbox = card.querySelector("input[type=checkbox]");
+            checkbox.addEventListener("change", () => {
+                if (checkbox.checked) state.checkedActions.add(id);
+                else state.checkedActions.delete(id);
+            });
+
+            return card;
+        }
+
+        function renderResult(payload) {
+            errorBox.classList.add("hidden");
+            errorBox.textContent = "";
+
+            rawJson.textContent = JSON.stringify(payload, null, 2);
+
+            const a = payload?.analysis_vn;
+            if (!a) {
+                show(resultContent);
+                hide(helperCard);
+                show(errorBox);
+                errorBox.textContent = "Response không có analysis_vn.";
+                return;
+            }
+
+            // compact summary
+            quickPrediction.textContent = a.prediction || "—";
+            quickAction.textContent = (a.recommended_actions && a.recommended_actions.length)
+                ? (a.recommended_actions[0].name || "—")
+                : "—";
+
+            setSeverity(a.severity_level || "");
+            show(quickStrip);
+
+            // causes
+            causesList.innerHTML = "";
+            (a.possible_causes || []).forEach(c => {
+                causesList.appendChild(renderCauseCard(c.cause, c.confidence, c.evidence));
+            });
+
+            // actions
+            actionsList.innerHTML = "";
+            (a.recommended_actions || []).forEach((act, idx) => {
+                actionsList.appendChild(renderActionCard(act, idx));
+            });
+
+            // recos
+            bioBox.textContent = (a.biological_recommendations && a.biological_recommendations.length)
+                ? a.biological_recommendations.join(", ")
+                : "—";
+
+            chemBox.textContent = (a.chemical_recommendations && a.chemical_recommendations.length)
+                ? a.chemical_recommendations.join(", ")
+                : "—";
+
+            monitoringPlan.textContent = a.monitoring_plan || "—";
+
+            preventList.innerHTML = "";
+            (a.preventive_measures || []).forEach(x => {
+                const li = document.createElement("li");
+                li.textContent = x;
+                preventList.appendChild(li);
+            });
+
+            if (a.additional_notes) {
+                notesWrap.classList.remove("hidden");
+                notesText.textContent = a.additional_notes;
+            } else {
+                notesWrap.classList.add("hidden");
+                notesText.textContent = "";
+            }
+
+            show(resultContent);
+            hide(helperCard);
+        }
+
+        function getSelectedImage() {
+            return state.images.find(x => x.id === state.selectedId) || null;
+        }
+
+        // =======================
+        // UPLOAD / PICK
+        // =======================
+        function addFiles(files) {
+            const arr = Array.from(files || []);
+            if (arr.length === 0) return;
+
+            for (const f of arr) {
+                const url = URL.createObjectURL(f);
+                state.images.push({ id: uid(), file: f, url });
+            }
+
+            if (!state.selectedId && state.images.length > 0) {
+                state.selectedId = state.images[0].id;
+            }
+
+            renderThumbs();
+            updateCounts();
+        }
+
+        // =======================
+        // ANALYZE
+        // =======================
+        async function analyzeSelected() {
+            const img = getSelectedImage();
+            if (!img) return;
+
+            closeSelectModal();
+            openProcessing();
+
+            try {
+                const fd = new FormData();
+                fd.append(FORM_FIELD_NAME, img.file, img.file.name);
+
+                const res = await fetch(API_URL, { method: "POST", body: fd });
+                const text = await res.text();
+
+                let data;
+                try { data = JSON.parse(text); } catch { data = { raw: text }; }
+
+                closeProcessing();
+
+                if (!res.ok) {
+                    setMainImage(img.url);
+                    resetBBoxes();
+                    show(resultContent);
+                    hide(helperCard);
+                    show(errorBox);
+                    errorBox.textContent = `Lỗi ${res.status}: ${JSON.stringify(data)}`;
+                    rawJson.textContent = JSON.stringify(data, null, 2);
+                    return;
+                }
+
+                state.result = data;
+                setMainImage(img.url);
+                resetBBoxes();
+                renderResult(data);
+
+            } catch (err) {
+                closeProcessing();
+                setMainImage(img.url);
+                resetBBoxes();
+                show(resultContent);
+                hide(helperCard);
+                show(errorBox);
+                errorBox.textContent = "Không gọi được API. Nếu khác domain/port, hãy cấu hình CORS hoặc dùng API_URL tương đối.";
+                rawJson.textContent = String(err);
+            }
+        }
+
+        // =======================
+        // EVENTS
+        // =======================
+        openPickerBtn.addEventListener("click", () => {
+            if (state.images.length === 0) {
+                fileInput.click();
+                openSelectModal();
+            } else {
+                openSelectModal();
+            }
+        });
+
+        closeModalBtn.addEventListener("click", closeSelectModal);
+        analyzeBtn.addEventListener("click", analyzeSelected);
+
+        fileInput.addEventListener("change", () => {
+            addFiles(fileInput.files);
+            fileInput.value = "";
+            if (selectModal.classList.contains("hidden")) openSelectModal();
+        });
+
+        // init
+        renderThumbs();
+        updateCounts();
+    </script>
+
+</body>
+
+</html>
