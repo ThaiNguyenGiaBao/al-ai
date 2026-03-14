@@ -22,3 +22,19 @@ class DetectResponse(BaseModel):
     analysis_vn: Optional[dict] = Field(
         None, description="Analysis results from the model"
     )
+
+
+class QuizGenerationRequest(BaseModel):
+    source_text: str
+    num_questions: int
+
+
+class QuizQuestion(BaseModel):
+    question: str
+    choices: List[str]
+    correct_index: int
+    explanations: List[str]
+
+
+class QuizGenerationResponse(BaseModel):
+    questions: List[QuizQuestion]

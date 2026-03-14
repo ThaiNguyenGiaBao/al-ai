@@ -1,18 +1,24 @@
 # health.router.py
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
-from fastapi.responses import JSONResponse
-from typing import Optional
 
-from .schema import DetectRequest, DetectResponse, DetectBytesRequest
+
+from .schema import (
+    DetectRequest,
+    DetectResponse,
+    QuizGenerationRequest,
+    QuizGenerationResponse,
+)
 from .service import HealthService
 
-router = APIRouter(prefix="/api/health", tags=["health"])
+router = APIRouter(
+    prefix="/api",
+)
 
 # create a singleton HealthService instance (or use DI in your app startup)
 health_service = HealthService()
 
 
-@router.post("/detect", response_model=DetectResponse)
+@router.post("/health/detect", response_model=DetectResponse)
 async def detect_endpoint(payload: DetectRequest = None):
     if payload is None or not payload.image_url:
         raise HTTPException(
@@ -21,7 +27,7 @@ async def detect_endpoint(payload: DetectRequest = None):
 
     try:
         print("Received detection request for URL:", payload.image_url)
-        analysis_vn = health_service.detect_from_url(payload.image_url)
+        analysis_vn = health_service.tree_disease_diagnosis_from_url(payload.image_url)
 
         return DetectResponse(analysis_vn=analysis_vn)
     except HTTPException:
@@ -31,7 +37,7 @@ async def detect_endpoint(payload: DetectRequest = None):
         raise HTTPException(status_code=500, detail=f"Detection failed: {exc}")
 
 
-@router.post("/detect-bytes", response_model=DetectResponse)
+@router.post("/health/detect-bytes", response_model=DetectResponse)
 async def detect_bytes_endpoint(image: UploadFile = File(...)):
     if not image.content_type.startswith("image/"):
         raise HTTPException(
@@ -39,9 +45,36 @@ async def detect_bytes_endpoint(image: UploadFile = File(...)):
         )
 
     try:
-        analysis_vn = health_service.detect_from_bytes(await image.read())
+        analysis_vn = health_service.tree_disease_diagnosis_from_bytes(
+            await image.read()
+        )
         return DetectResponse(analysis_vn=analysis_vn)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Detection failed: {exc}")
+
+
+@router.post("/quiz", response_model=QuizGenerationResponse)
+async def quiz_endpoint(payload: QuizGenerationRequest):
+    if (
+        not payload.source_text
+        or payload.num_questions < 1
+        or payload.num_questions > 30
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="source_text is required and num_questions must be in [1,30]",
+        )
+    try:
+        result = health_service.quiz_generation(
+            payload.source_text, payload.num_questions
+        )
+        return QuizGenerationResponse.model_validate(result)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Quiz generation failed: {exc}",
+        )

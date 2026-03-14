@@ -19,23 +19,30 @@ class GeminiModel(AIModelInterface):
         self.client = genai.Client(api_key=api_key)
         self.model = model_name
 
-    def generate_json_response(self, image_bytes: bytes, PROMPT) -> Dict[str, Any]:
+    def generate_from_image(
+        self, image_bytes: bytes, prompt: str
+    ) -> Dict[str, Any]:
         image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
 
-        resp = self.client.models.generate_content(
+        response = self.client.models.generate_content(
             model=self.model,
-            contents=[PROMPT, image_part],
+            contents=[prompt, image_part],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=99999,
             ),
         )
-        raw = resp.text
-        try:
-            return json.loads(raw).get("analysis_vn", {})
-        except json.JSONDecodeError:
-            raise ValueError("Invalid JSON format")
+        return json.loads(response.text)
+
+    def generate_text_content(self, prompt: str) -> Dict[str, Any]:
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.2, response_mime_type="application/json"
+            ),
+        )
+
+        return json.loads(response.text)
 
 
 geminiModel = GeminiModel()
