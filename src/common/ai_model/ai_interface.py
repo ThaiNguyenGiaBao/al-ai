@@ -10,5 +10,5 @@ class AIModelInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_text_content(self, source: str, prompt: str) -> Dict[str, Any]:
+    def generate_json_content(self, source: str, prompt: str) -> Dict[str, Any]:
         pass

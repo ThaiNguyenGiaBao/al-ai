@@ -1,7 +1,8 @@
 # health.service.py
+import json
 import os
 
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Union
 
 import requests
 
@@ -143,4 +144,202 @@ class HealthService:
         {source_text}
         \"\"\"
         """
-        return geminiModel.generate_text_content(prompt)
+        return geminiModel.generate_json_content(prompt)
+
+    def extract_tree_journey(self, raw_data: str) -> Dict[str, Any]:
+        raw_str = (
+            json.dumps(raw_data, ensure_ascii=False)
+            if isinstance(raw_data, dict)
+            else raw_data
+        )
+        PROMPT = f"""
+        Bạn là một trợ lý chuyển đổi dữ liệu.
+        Đây là dữ liệu về hành trình chăm sóc cây của học sinh
+
+        Nhiệm vụ của bạn là đọc một đối tượng JSON hành trình chăm sóc của cây (raw) và chuyển đổi nó thành một object sạch, sẵn sàng để hiển thị trên giao diện web cho trang "My Tree Journey".
+        Nội dung được kể lại theo ngôi thứ nhất (học sinh kể lại hành trình chăm sóc cây), xưng mình "Mình", tuyệt đối không xưng hô khác
+        MỤC TIÊU
+        Chuyển đổi schema đầu vào thành JSON chỉ gồm các field cần thiết cho template web.
+
+        QUY TẮC QUAN TRỌNG
+        - Chỉ trả về JSON.
+        - Không bọc đầu ra dưới dạng markdown.
+        - Không thêm giải thích.
+        - Chỉ trả về đúng các field được yêu cầu, không thêm field khác.
+        - Giữ tiếng Việt khi tự nhiên cho tiêu đề giai đoạn và văn bản kể chuyện.
+        - Viết ngôi thứ nhất, phong cách học sinh, gần gũi, mạch lạc.
+        - Ưu tiên ý nghĩa thay vì bê nguyên văn bản.
+        - Văn phong ấm áp, tự nhiên, trung thực với dữ liệu.
+
+        MẪU ĐẦU RA
+        Trả về object có đúng cấu trúc này:
+
+        {{
+        "heroImage": "",
+        "heroAlt": "",
+        "heroBadge": "",
+        "heroTitle": "",
+        "heroDescription": "",
+        "breed": "",
+        "cultivar": "",
+        "farmingMethod": "",
+        "growDuration": 0,
+        "growthStages": [
+            {{
+            "index": 1,
+            "stageDisplayName": "",
+            "stageImage": "",
+            "stageImageCaption": "",
+            "studentStory": "",
+            "gardenNote": "",
+            "layoutClass": "",
+            "contentSpacingClass": "",
+            "emptySpacingClass": "",
+            "cardAccentClass": "",
+            "timelineDotClass": "",
+            "noteMarginClass": ""
+            }}
+        ],
+        "harvestTitle": "",
+        "estimatedFruitWeight": 0,
+        "fruitWeight": 0,
+        "harvestBadge": "",
+        "harvestQuote": "",
+        "footerTitle": "",
+        "footerDescription": "",
+        }}
+
+        CHỈ SINH ĐÚNG CÁC FIELD TRÊN
+        Không trả về bất kỳ field nào khác ngoài mẫu đầu ra
+
+        HƯỚNG DẪN ÁNH XẠ TRƯỜNG
+
+        1. THÔNG TIN PHẦN ĐẦU
+        - heroImage:
+        Chọn ảnh ưu tiên theo thứ tự:
+        1) imageKeys[0]
+        2) harvestTreeImageKeys[0]
+        3) harvestFruitImageKeys[0]
+        - heroAlt:
+        "Tree Background"
+        - heroBadge:
+        "Nhật ký xanh của mình"
+        - heroTitle:
+        "My Tree Journey: Câu chuyện về {{name}}"
+        - heroDescription:
+        Viết mở đầu tiếng Việt tự nhiên, dựa trên mô tả cây và vòng đời.
+        Ngôi thứ nhất (học sinh kể lại hành trình chăm sóc cây), văn phong học sinh, 2–3 câu.
+        Có thể nhắc thời lượng hành trình nếu có growDuration.
+        - breed = breed
+        - cultivar = cultivar
+        - farmingMethod:
+        "Hữu cơ" nếu isOrganic = true, nếu không thì "Thông thường"
+        - growDuration = growDuration
+
+        2. GIAI ĐOẠN PHÁT TRIỂN
+        Sinh growthStages từ input.growthStage.
+        Sắp xếp tăng dần theo afterWeeks.
+
+        Với mỗi stage, chỉ trả về các field sau:
+
+        - index:
+        Thứ tự từ 1 sau khi đã sắp xếp
+
+        - stageDisplayName:
+        Chuyển stageName thành nhãn tiếng Việt + tiếng Anh:
+        SEEDLING -> "Giai đoạn Mầm Non (Seedling)"
+        SAPLING -> "Giai đoạn Cây Con (Sapling)"
+        VEGETATIVE -> "Giai đoạn Phát triển (Vegetative)"
+        FLOWERING -> "Giai đoạn Ra Hoa (Flowering)"
+        FRUITING -> "Giai đoạn Ra Trái (Fruiting)"
+        Nếu không khớp, tự đặt tên phù hợp.
+
+        - stageImage:
+        Chọn ảnh tốt nhất theo thứ tự:
+        1) diseaseDiagnosises[0].imageKeys[0] nếu có ảnh bệnh rõ ràng
+        2) stage.imageKeys[0]
+        3) root imageKeys[0]
+        4) harvestTreeImageKeys[0]
+
+        - stageImageCaption:
+        Viết caption ngắn 1–2 câu, giàu hình ảnh, đúng với đặc điểm cây ở giai đoạn đó.
+        Chỉ mô tả cây trồng trong giai đoạn này, không lan man.
+        Văn phong gần gũi, ấm áp.
+
+        - studentStory:
+        Dựa trên studentObservation, viết lại thành 2–3 câu kể chuyện ngôi thứ nhất.
+        Giọng học sinh, tự nhiên, có quan sát và bài học rút ra.
+        Nếu studentObservation ngắn, có thể diễn đạt lại phong phú hơn nhưng không sai dữ liệu.
+
+        - gardenNote:
+        Dựa trên stage.comment, viết thành 1 đoạn văn 2–4 câu.
+        Ưu tiên:
+        1) hành động/ghi nhận của nông dân
+        2) quan sát hoặc cảm nhận của học sinh
+        3) gợi ý hoặc chẩn đoán từ AI nếu thật sự quan trọng
+        Bỏ qua lời chào hoặc nội dung rỗng.
+        Không dùng bullet.
+        Nếu stage hầu như không có nội dung hữu ích, cho chuỗi rỗng "".
+
+        - layoutClass:
+        Nếu index lẻ: "md:flex-row"
+        Nếu index chẵn: "md:flex-row-reverse"
+
+        - contentSpacingClass:
+        Nếu index lẻ: "pr-0 md:pr-12"
+        Nếu index chẵn: "pl-0 md:pl-12"
+
+        - emptySpacingClass:
+        Nếu index lẻ: "pl-0 md:pl-12"
+        Nếu index chẵn: ""
+
+        - cardAccentClass:
+        Nếu index lẻ: "border-sage"
+        Nếu index chẵn: "border-earth"
+
+        - timelineDotClass:
+        Nếu index lẻ: "bg-sage"
+        Nếu index chẵn: "bg-earth"
+
+        - noteMarginClass:
+        Nếu gardenNote có nội dung: "mb-6"
+        Nếu gardenNote rỗng: ""
+
+        3. PHẦN THU HOẠCH
+        - harvestTitle:
+        "🎉 Harvest Day: The Grand Finale!"
+        - estimatedFruitWeight = estimatedFruitWeight
+        - fruitWeight = fruitWeight
+        - harvestBadge:
+        Nếu fruitWeight > estimatedFruitWeight -> "Vượt kế hoạch"
+        Nếu fruitWeight = estimatedFruitWeight -> "Đúng kế hoạch"
+        Nếu fruitWeight < estimatedFruitWeight -> "Chưa đạt kế hoạch"
+        - harvestQuote:
+        Viết tiếng Việt ngôi thứ nhất dựa trên harvestedAt và kết quả cuối cùng.
+        Tone ví dụ:
+        "Vào ngày {{dd/MM/yyyy}}, sự chờ đợi cuối cùng cũng đã kết thúc. Cầm trái ngọt trên tay, mình nhận ra bao nhiêu nỗ lực đã bỏ ra cho thực phẩm chúng ta ăn hằng ngày. Đây thực sự là một hành trình đáng nhớ."
+        Ngày theo định dạng dd/MM/yyyy.
+
+        4. CHÂN TRANG
+        - footerTitle:
+        "Cảm ơn bạn đã lắng nghe!"
+        - footerDescription:
+        Viết kết ngắn tiếng Việt, tối đa 2 câu.
+        Thể hiện niềm tự hào, sẻ chia, kiên nhẫn và tôn trọng sự sống.
+
+        QUY TẮC CHẤT LƯỢNG
+        - Văn phong kể chuyện tự nhiên, ấm áp.
+        - Không bịa nội dung mâu thuẫn dữ liệu gốc.
+        - Có thể diễn đạt phong phú hơn nhưng phải trung thực với nguồn.
+        - Nếu dữ liệu ít, tổng hợp nhẹ cho hợp lý.
+        - Tránh lặp lại cùng một mẫu câu giữa các giai đoạn.
+        - Caption ngắn, giàu hình ảnh.
+        - gardenNote thực tiễn, giống một đoạn kể chuyện ngắn.
+
+        ĐẦU VÀO
+        Đây là schema gốc cần chuyển đổi:
+
+        {raw_str}
+        """
+
+        return geminiModel.generate_json_content(PROMPT)

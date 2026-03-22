@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 
 class Detection(BaseModel):
@@ -38,3 +38,43 @@ class QuizQuestion(BaseModel):
 
 class QuizGenerationResponse(BaseModel):
     questions: List[QuizQuestion]
+
+
+class TreeJourneyRequest(BaseModel):
+    raw_data:str
+
+
+class GrowthStage(BaseModel):
+    index: int = 1
+    stageDisplayName: str = ""
+    stageImage: str = ""
+    stageImageCaption: str = ""
+    studentStory: str = ""
+    gardenNote: str = ""
+    layoutClass: str = ""
+    contentSpacingClass: str = ""
+    emptySpacingClass: str = ""
+    cardAccentClass: str = ""
+    timelineDotClass: str = ""
+    noteMarginClass: str = ""
+
+
+class TreeJourneyResponse(BaseModel):
+    heroImage: str = ""
+    heroAlt: str = ""
+    heroBadge: str = ""
+    heroTitle: str = ""
+    heroDescription: str = ""
+    breed: str = ""
+    cultivar: str = ""
+    farmingMethod: str = ""
+    growDuration: int = 0
+    growthStages: List[GrowthStage] = Field(default_factory=list)
+    harvestTitle: str = ""
+    estimatedFruitWeight: int = 0
+    fruitWeight: int = 0
+    harvestBadge: str = ""
+    harvestQuote: str = ""
+    footerTitle: str = ""
+    footerDescription: str = ""
+

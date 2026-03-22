@@ -7,6 +7,8 @@ from .schema import (
     DetectResponse,
     QuizGenerationRequest,
     QuizGenerationResponse,
+    TreeJourneyRequest,
+    TreeJourneyResponse,
 )
 from .service import HealthService
 
@@ -77,4 +79,18 @@ async def quiz_endpoint(payload: QuizGenerationRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Quiz generation failed: {exc}",
+        )
+
+
+@router.post("/tree-journey", response_model=TreeJourneyResponse)
+async def extract_tree_journey_endpoint(payload: TreeJourneyRequest):
+    try:
+        result = health_service.extract_tree_journey(payload.raw_data)
+        return TreeJourneyResponse.model_validate(result)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Tree journey extraction failed: {exc}",
         )
